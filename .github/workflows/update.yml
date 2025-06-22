@@ -1,8 +1,12 @@
 name: monthly-update
 on:
-  workflow_dispatch:            # 手動実行用
+  # 手動実行ボタン
+  workflow_dispatch:
+
+  # 28〜31日の 23:30(JST) に毎日実行
+  #   23:30 JST = 14:30 UTC → 30 14 ...
   schedule:
-    - cron: '30 14 L * *'       # 毎月末 23:30 JST
+    - cron: '30 14 28-31 * *'
 jobs:
   run:
     runs-on: ubuntu-latest

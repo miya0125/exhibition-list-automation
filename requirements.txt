@@ -1,0 +1,4 @@
+notion-client
+pandas
+streamlit
+requests

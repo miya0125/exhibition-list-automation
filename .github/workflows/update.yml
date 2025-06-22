@@ -1,0 +1,21 @@
+name: monthly-update
+on:
+  workflow_dispatch:            # 手動実行用
+  schedule:
+    - cron: '30 14 L * *'       # 毎月末 23:30 JST
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - run: pip install -r requirements.txt
+      - run: python update.py
+      - run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add merged_list.csv
+          git commit -m "auto update" || echo "no changes"
+          git push

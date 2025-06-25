@@ -1,4 +1,7 @@
-notion-client
-pandas
-streamlit
-requests
+streamlit>=1.28.0
+pandas>=2.0.0
+notion-client>=2.2.1
+requests>=2.31.0
+charset-normalizer>=3.2.0
+openpyxl>=3.1.0
+xlrd>=2.0.0

@@ -310,12 +310,27 @@ def notion_download():
         database_id = st.text_input("Database ID", 
                                   value=os.environ.get("DATABASE_ID", ""))
     
+    # 更新モード選択
+    st.markdown("### 📅 更新モード")
+    col1, col2 = st.columns(2)
+    with col1:
+        update_mode = st.radio(
+            "取得するファイル",
+            ["今月の新規ファイルのみ", "全ファイル（完全更新）"],
+            help="月次運用では「今月の新規ファイルのみ」を推奨"
+        )
+    with col2:
+        if update_mode == "今月の新規ファイルのみ":
+            st.info("💡 抽出日が今月のファイルのみを取得します")
+        else:
+            st.warning("⚠️ 全ファイルを取得します（時間がかかる場合があります）")
+    
     if st.button("Notionからダウンロード", disabled=not (notion_api_key and database_id)):
         try:
             notion = Client(auth=notion_api_key)
             
-            # フィルター条件
-            filter_conditions = {
+            # 基本フィルター条件
+            base_filter = {
                 "and": [
                     {
                         "or": [
@@ -331,6 +346,24 @@ def notion_download():
                 ]
             }
             
+            # 今月の新規ファイルのみの場合、抽出日フィルターを追加
+            if update_mode == "今月の新規ファイルのみ":
+                from datetime import datetime
+                from calendar import monthrange
+                
+                now = datetime.now()
+                first_day = datetime(now.year, now.month, 1)
+                last_day_of_month = monthrange(now.year, now.month)[1]
+                last_day = datetime(now.year, now.month, last_day_of_month)
+                
+                base_filter["and"].append({
+                    "property": "抽出日", 
+                    "date": {
+                        "on_or_after": first_day.strftime('%Y-%m-%d'),
+                        "on_or_before": last_day.strftime('%Y-%m-%d')
+                    }
+                })
+            
             with st.spinner("Notionからデータを取得中..."):
                 # 全てのアイテムを取得
                 all_items = []
@@ -339,7 +372,7 @@ def notion_download():
                 while True:
                     response = notion.databases.query(
                         database_id=database_id,
-                        filter=filter_conditions,
+                        filter=base_filter,
                         start_cursor=start_cursor
                     )
                     items = response.get("results", [])
@@ -348,7 +381,13 @@ def notion_download():
                         break
                     start_cursor = response.get("next_cursor")
                 
-                st.success(f"{len(all_items)}件のアイテムが見つかりました")
+                st.success(f"🎯 {len(all_items)}件のアイテムが見つかりました")
+                
+                # 取得期間の表示
+                if update_mode == "今月の新規ファイルのみ":
+                    st.info(f"📅 取得期間: {now.strftime('%Y年%m月')}の抽出日に該当するファイル")
+                else:
+                    st.info("📅 取得期間: 全期間")
                 
                 # ファイルダウンロード処理
                 downloaded_files = []
@@ -403,16 +442,22 @@ def notion_download():
                     progress_bar.progress((item_idx + 1) / len(all_items))
                 
                 st.session_state.notion_files = downloaded_files
-                st.success(f"✅ {len(downloaded_files)}個のファイルをダウンロードしました")
+                st.session_state.notion_update_mode = update_mode
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.success(f"✅ {len(downloaded_files)}個のファイルをダウンロードしました")
+                with col2:
+                    if failed_files:
+                        st.warning(f"⚠️ {len(failed_files)}個のファイルでエラーが発生")
                 
                 if failed_files:
-                    st.warning(f"⚠️ {len(failed_files)}個のファイルでエラーが発生しました")
-                    with st.expander("エラー詳細"):
+                    with st.expander("❌ エラー詳細"):
                         for error in failed_files:
                             st.write(f"- {error}")
                 
         except Exception as e:
-            st.error(f"エラーが発生しました: {e}")
+            st.error(f"❌ エラーが発生しました: {e}")
 
 def file_upload_processing():
     """ファイルアップロード処理"""
@@ -420,15 +465,25 @@ def file_upload_processing():
     
     # Notionからダウンロードしたファイルがある場合
     if 'notion_files' in st.session_state and st.session_state.notion_files:
-        st.info(f"💾 Notionから{len(st.session_state.notion_files)}個のファイルがダウンロード済みです")
+        update_mode = st.session_state.get('notion_update_mode', '不明')
+        st.info(f"💾 Notionから{len(st.session_state.notion_files)}個のファイルがダウンロード済み（{update_mode}）")
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("📥 Notionファイルを処理"):
                 process_files(st.session_state.notion_files, "Notion")
         with col2:
+            merge_option = st.checkbox(
+                "既存データと統合", 
+                value=True, 
+                help="チェック時：既存データと統合し重複削除\n未チェック時：新規データで完全置換"
+            )
+            st.session_state.merge_with_existing = merge_option
+        with col3:
             if st.button("🗑️ Notionファイルをクリア"):
                 del st.session_state.notion_files
+                if 'notion_update_mode' in st.session_state:
+                    del st.session_state.notion_update_mode
                 st.rerun()
     
     uploaded_files = st.file_uploader(
@@ -528,30 +583,53 @@ def process_files(file_data, source_type):
         
         after_count = len(merged_df)
         
-        # 既存データと統合
-        if not st.session_state.merged_data.empty:
-            st.session_state.merged_data = pd.concat([st.session_state.merged_data, merged_df], ignore_index=True)
-            # 全体でも重複削除
-            if 'メールアドレス' in st.session_state.merged_data.columns:
-                email_duplicates = st.session_state.merged_data[st.session_state.merged_data['メールアドレス'] != ''].duplicated(
-                    subset=['メールアドレス'], keep='last'
-                )
-                st.session_state.merged_data = st.session_state.merged_data[~email_duplicates]
+        # 統合されたファイルの重複削除処理（月次運用対応）
+        if not st.session_state.merged_data.empty and st.session_state.get('merge_with_existing', True):
+            # 新規データと既存データを統合
+            combined_df = pd.concat([st.session_state.merged_data, merged_df], ignore_index=True)
+            before_combined = len(combined_df)
+            
+            # 重複削除（新しいデータを優先、古いデータを削除）
+            if 'メールアドレス' in combined_df.columns:
+                email_mask = (combined_df['メールアドレス'].notna()) & (combined_df['メールアドレス'] != '')
+                email_duplicates = combined_df[email_mask].duplicated(subset=['メールアドレス'], keep='last')
+                combined_df = combined_df[~email_duplicates]
+                email_removed = email_duplicates.sum()
+            else:
+                email_removed = 0
+            
+            # 会社名+展示会名ベースの重複削除
+            key_duplicates = combined_df.duplicated(subset=['会社名', '展示会名'], keep='last')
+            combined_df = combined_df[~key_duplicates]
+            key_removed = key_duplicates.sum()
+            
+            st.session_state.merged_data = combined_df
+            after_combined = len(combined_df)
+            
+            st.success(f"""
+            ✅ **{source_type}ファイル統合完了**
+            - 処理ファイル数: {total_stats['files_processed']}個
+            - 新規データ数: {after_count}件
+            - 既存データとの統合: {before_combined} → {after_combined}件
+            - 重複削除: メール{email_removed}件 + キー{key_removed}件
+            - メール抽出数: {total_stats['email_extracted']}件
+            - 電話番号抽出数: {total_stats['tel_extracted']}件
+            """)
         else:
+            # 既存データを置換
             st.session_state.merged_data = merged_df
         
         # 統計情報保存
         st.session_state.processing_stats = total_stats
         
-        st.success(f"""
-        ✅ **{source_type}ファイル処理完了**
-        - 処理ファイル数: {total_stats['files_processed']}個
-        - 処理前データ数: {before_count}件
-        - 重複・空行削除後: {after_count}件
-        - メール抽出数: {total_stats['email_extracted']}件
-        - 電話番号抽出数: {total_stats['tel_extracted']}件
-        - 最終統合データ数: {len(st.session_state.merged_data)}件
-        """)
+        if not st.session_state.get('merge_with_existing', True):
+            st.success(f"""
+            ✅ **{source_type}ファイル処理完了（新規データで置換）**
+            - 処理ファイル数: {total_stats['files_processed']}個
+            - 最終データ数: {len(st.session_state.merged_data)}件
+            - メール抽出数: {total_stats['email_extracted']}件
+            - 電話番号抽出数: {total_stats['tel_extracted']}件
+            """)
     
     # エラーファイル表示
     if error_files:

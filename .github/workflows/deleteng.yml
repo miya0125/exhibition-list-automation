@@ -1,11 +1,11 @@
 name: Clean Exhibition Lists                                                                                                                 
                                                                                                                                                
-  on:                                                                                                                                          
+on:                                                                                                                                     
     workflow_dispatch:                                                                                                                         
     schedule:                                                                                                                                  
       - cron: '0 1 * * *'   # optional nightly run                                                                                             
                                                                                                                                                
-  jobs:                                                                                                                                        
+jobs:                                                                                                                                        
     clean:                                                                                                                                     
       runs-on: ubuntu-latest                                                                                                                   
       steps:                                                                                                                                   

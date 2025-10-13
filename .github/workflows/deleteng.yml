@@ -18,11 +18,4 @@ name: Clean Exhibition Lists
           env:                                                                                                                                 
             GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}                                                            
             CONFIG_SPREADSHEET_ID: ${{ secrets.CONFIG_SPREADSHEET_ID }}                                                                        
-            # CONFIG_WORKSHEET: 指示書タブ名を変えた場合のみ追加                                                                               
-                                                                                                                                               
-  Running It                                                                                                                                   
-                                                                                                                                               
-  - Push/commit deleteng_github.py and the workflow file to the repo.                                                                          
-  - When you want to run it manually: open the repo → Actions → Clean Exhibition Lists → Run workflow, choose the branch (usually main) and    
-  click “Run workflow”.                                                                                                                        
-  - You can monitor progress on the same Actions page; logs will show the row counts, NG hits, and completion message.
+            # CONFIG_WORKSHEET: 指示書タブ名を変えた場合のみ追加

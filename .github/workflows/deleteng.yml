@@ -1,0 +1,28 @@
+name: Clean Exhibition Lists                                                                                                                 
+                                                                                                                                               
+  on:                                                                                                                                          
+    workflow_dispatch:                                                                                                                         
+    schedule:                                                                                                                                  
+      - cron: '0 1 * * *'   # optional nightly run                                                                                             
+                                                                                                                                               
+  jobs:                                                                                                                                        
+    clean:                                                                                                                                     
+      runs-on: ubuntu-latest                                                                                                                   
+      steps:                                                                                                                                   
+        - uses: actions/checkout@v4                                                                                                            
+        - uses: actions/setup-python@v5                                                                                                        
+          with:                                                                                                                                
+            python-version: '3.11'                                                                                                             
+        - run: pip install pandas gspread google-auth                                                                                          
+        - run: python deleteng_github.py                                                                                                       
+          env:                                                                                                                                 
+            GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}                                                            
+            CONFIG_SPREADSHEET_ID: ${{ secrets.CONFIG_SPREADSHEET_ID }}                                                                        
+            # CONFIG_WORKSHEET: 指示書タブ名を変えた場合のみ追加                                                                               
+                                                                                                                                               
+  Running It                                                                                                                                   
+                                                                                                                                               
+  - Push/commit deleteng_github.py and the workflow file to the repo.                                                                          
+  - When you want to run it manually: open the repo → Actions → Clean Exhibition Lists → Run workflow, choose the branch (usually main) and    
+  click “Run workflow”.                                                                                                                        
+  - You can monitor progress on the same Actions page; logs will show the row counts, NG hits, and completion message.

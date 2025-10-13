@@ -1,5 +1,4 @@
 name: Clean Exhibition Lists                                                                                                                 
-                                                                                                                                               
 on:                                                                                                                                     
     workflow_dispatch:                                                                                                                         
     schedule:                                                                                                                                  

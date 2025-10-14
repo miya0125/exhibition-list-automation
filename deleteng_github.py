@@ -262,17 +262,15 @@ def load_config(client: gspread.Client, spreadsheet_id: str, worksheet: str) -> 
 
     config: Dict[str, str] = {}
     for _, row in df.iterrows():
-        key_raw = (row.get(key_col) or "").strip()
+        key_raw = cell_text(row.get(key_col))
         if not key_raw:
             continue
-        value = row.get(value_col)
-        if value is None:
-            value = ""
+        value = cell_text(row.get(value_col))
         key_norm = normalize_identifier(key_raw)
         mapped = INSTRUCTION_KEY_ALIASES.get(key_norm)
         if not mapped:
             mapped = key_norm
-        config[mapped] = str(value).strip()
+        config[mapped] = value
 
     if not config:
         raise ConfigError(
@@ -360,6 +358,18 @@ def truthy(value: object) -> bool:
     return text in {"1", "true", "yes", "y", "on", "有効", "使用", "use"}
 
 
+def cell_text(value: object) -> str:
+    """Convert Google Sheet cell value to trimmed text, handling pandas.NA safely."""
+
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
 def strip_contains_token(raw: str) -> Tuple[str, bool]:
     text = raw.strip()
     if len(text) >= 2 and text[0] in CONTAINS_MARKERS and text[-1] in CONTAINS_MARKERS:
@@ -429,8 +439,8 @@ def load_ng_definitions(
         for _, row in df.iterrows():
             if enabled_col and not truthy(row.get(enabled_col)):
                 continue
-            raw_category = (row.get(category_col) or "").strip()
-            raw_value = (row.get(value_col) or "").strip()
+            raw_category = cell_text(row.get(category_col))
+            raw_value = cell_text(row.get(value_col))
             if not raw_category or not raw_value:
                 continue
 

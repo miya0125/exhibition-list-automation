@@ -81,6 +81,12 @@ DEFAULT_INDUSTRY_CANDIDATES = [
     "sector",
     "category",
 ]
+DEFAULT_EXHIBITION_CANDIDATES = [
+    "展示会名",
+    "展示会",
+    "exhibition",
+    "expo",
+]
 LEGAL_TOKENS = [
     "株式会社",
     "（株）",
@@ -140,12 +146,16 @@ INSTRUCTION_KEY_ALIASES = {
     "ngタブ": "ng_tabs",
     "業界ngキーワード": "industry_keywords",
     "業界キーワード": "industry_keywords",
+    "展示会ngキーワード": "exhibition_keywords",
+    "展示会キーワード": "exhibition_keywords",
     "解除urlベース": "unsubscribe_base_url",
     "解除url": "unsubscribe_base_url",
     "トリム対象列": "trim_columns",
     "メール列候補": "email_column_candidates",
     "会社列候補": "company_column_candidates",
     "業界列候補": "industry_column_candidates",
+    "展示会列候補": "exhibition_column_candidates",
+    "展示会名列候補": "exhibition_column_candidates",
 }
 KEY_COLUMN_ALIASES = {"項目", "item", "key", "設定", "name"}
 VALUE_COLUMN_ALIASES = {"値", "value", "内容", "設定値"}
@@ -580,6 +590,15 @@ def is_ng_industry(value: object, keywords: Sequence[str]) -> bool:
     return any(word and word in normalized for word in keywords)
 
 
+def is_ng_exhibition(value: object, keywords: Sequence[str]) -> bool:
+    if not keywords:
+        return False
+    normalized = normalize_text(value)
+    if not normalized:
+        return False
+    return any(word and word in normalized for word in keywords)
+
+
 def find_column(df: pd.DataFrame, candidates: Sequence[str]) -> Optional[str]:
     if df.empty:
         return None
@@ -613,12 +632,17 @@ def process(client: gspread.Client, cfg: Config) -> None:
         cfg.optional("industry_column_candidates"),
         DEFAULT_INDUSTRY_CANDIDATES,
     )
+    exhibition_candidates = parse_list_config(
+        cfg.optional("exhibition_column_candidates"),
+        DEFAULT_EXHIBITION_CANDIDATES,
+    )
     trim_targets = parse_list_config(
         cfg.optional("trim_columns"),
         DEFAULT_TRIM_COLUMNS,
     )
 
     industry_keywords = parse_list_config(cfg.optional("industry_keywords"))
+    exhibition_keywords = parse_list_config(cfg.optional("exhibition_keywords"))
 
     ng_spreadsheet = cfg.optional("ng_spreadsheet_id", cfg.config_spreadsheet_id)
     ng_tabs_raw = cfg.require("ng_tabs")
@@ -638,6 +662,7 @@ def process(client: gspread.Client, cfg: Config) -> None:
     email_col = find_column(df, email_candidates)
     company_col = find_column(df, company_candidates)
     industry_col = find_column(df, industry_candidates)
+    exhibition_col = find_column(df, exhibition_candidates)
 
     if not email_col:
         raise ConfigError(
@@ -671,11 +696,17 @@ def process(client: gspread.Client, cfg: Config) -> None:
         )
     else:
         mask_industry = pd.Series(False, index=df.index)
+    if exhibition_col:
+        mask_exhibition = df[exhibition_col].apply(
+            lambda value: is_ng_exhibition(value, exhibition_keywords)
+        )
+    else:
+        mask_exhibition = pd.Series(False, index=df.index)
 
-    filtered = df[~mask_company & ~mask_email & ~mask_industry].copy()
+    filtered = df[~mask_company & ~mask_email & ~mask_industry & ~mask_exhibition].copy()
     print(
         f"Input rows={len(df)} | ng_company={mask_company.sum()} | ng_email={mask_email.sum()}"
-        f" | ng_industry={mask_industry.sum()} | output={len(filtered)}"
+        f" | ng_industry={mask_industry.sum()} | ng_exhibition={mask_exhibition.sum()} | output={len(filtered)}"
     )
 
     dup_col = "重複チェック"

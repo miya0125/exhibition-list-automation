@@ -1,10 +1,11 @@
-name: Clean Exhibition Lists                                                                                                                 
-on:                                                                                                                                     
+  name: Clean Exhibition Lists                                                                                                                 
+                                                                                                                                               
+  on:                                                                                                                                          
     workflow_dispatch:                                                                                                                         
     schedule:                                                                                                                                  
-      - cron: '0 1 * * *'   # optional nightly run                                                                                             
+      - cron: '0 1 * * *'                                                                                                                      
                                                                                                                                                
-jobs:                                                                                                                                        
+  jobs:                                                                                                                                        
     clean:                                                                                                                                     
       runs-on: ubuntu-latest                                                                                                                   
       steps:                                                                                                                                   
@@ -12,9 +13,10 @@ jobs:
         - uses: actions/setup-python@v5                                                                                                        
           with:                                                                                                                                
             python-version: '3.11'                                                                                                             
-        - run: pip install pandas gspread google-auth                                                                                          
-        - run: python deleteng_github.py                                                                                                       
+        - run: pip install pandas gspread google-auth openpyxl                                                                                 
+        - name: Run cleanup script                                                                                                             
+          run: python deleteng_github.py                                                                                                       
           env:                                                                                                                                 
             GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}                                                            
             CONFIG_SPREADSHEET_ID: ${{ secrets.CONFIG_SPREADSHEET_ID }}                                                                        
-            # CONFIG_WORKSHEET: 指示書タブ名を変えた場合のみ追加
+            # CONFIG_WORKSHEET を使う場合はこちらに追記

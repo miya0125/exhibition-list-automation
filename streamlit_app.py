@@ -21,9 +21,10 @@ st.set_page_config(
 )
 
 # APIキーのデフォルト値設定
-DEFAULT_NOTION_API_KEY = "APIを入力"
-DEFAULT_DATABASE_ID = "ID入力"
-DEFAULT_GOOGLE_SHEETS_API_KEY = "APIを入力"
+DEFAULT_NOTION_API_KEY = ""
+DEFAULT_DATABASE_ID = ""
+DEFAULT_GOOGLE_SHEETS_API_KEY = ""
+
 
 # セッション状態の初期化
 if 'merged_data' not in st.session_state:
@@ -127,6 +128,7 @@ def extract_email_from_text(text):
         return ""
     
     text = str(text)
+    # メールアドレス抽出パターン（全角・半角対応）
     patterns = [
         r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
         r'([a-zA-Z0-9._%+-]+[@＠][a-zA-Z0-9.-]+[.．][a-zA-Z]{2,})',
@@ -136,8 +138,10 @@ def extract_email_from_text(text):
         match = re.search(pattern, text)
         if match:
             email = match.group(1)
+            # 全角を半角に直す（@ → ＠, . → ．）
             email = email.replace('＠', '@').replace('．', '.')
-            return email.lower()
+            # **ここでは前処理で不要に文字を削らない**
+            return email.strip().lower()
     
     return ""
 
@@ -940,15 +944,15 @@ def notion_download():
     filter_option = st.radio(
         "取得データの分類方法",
         ["すべて統合", "カテゴリ別分類"],
-        help="カテゴリ別分類：メールあり・TELあり・URLありで分けて取得"
+        help="カテゴリ別分類：メールあり・TELあり・URLあり・出展社名のみで分けて取得"
     )
-    
+
     if filter_option == "カテゴリ別分類":
-        st.info("📂 以下の3つのカテゴリに分けて取得・処理します")
-        
+        st.info("📂 以下の4つのカテゴリに分けて取得・処理します")
+
         # カテゴリ選択オプション
         st.markdown("### 📁 ダウンロードするカテゴリを選択")
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             download_email = st.checkbox(
@@ -979,12 +983,23 @@ def notion_download():
                 st.write("- 社名・住所・URL")
                 st.write("- 社名とURL（直で企業HPリンク）")
                 st.write("- 社名とURLのみ")
-        
+
+        with col4:
+            download_exhibitor = st.checkbox(
+                "🏢 出展社名のみ",
+                value=True,
+                help="メールアドレス（有無）が「出展社名のみ」または「社名・住所」のデータ"
+            )
+            if download_exhibitor:
+                st.write("- 出展社名のみ")
+                st.write("- 社名・住所")
+
         # 選択されたカテゴリを保存
         st.session_state.selected_categories = {
             "📧メールあり": download_email,
             "📞TELあり": download_tel,
-            "🌐URLあり": download_url
+            "🌐URLあり": download_url,
+            "🏢出展社名のみ": download_exhibitor
         }
     
     # 更新モード選択
@@ -998,7 +1013,7 @@ def notion_download():
         )
     with col2:
         if update_mode == "今月の新規ファイルのみ":
-            st.info("📅 最終更新日時が今月のファイルのみを取得します")
+            st.info("📅 展示会日程_初日が今月のファイルのみを取得します")
         elif update_mode == "期間を指定":
             st.info("📅 指定した期間のファイルを取得します")
         else:
@@ -1054,12 +1069,12 @@ def notion_download():
                     first_day_iso = first_day.isoformat() + "Z"
                     
                     # デバッグ用に期間を表示
-                    st.info(f"🎯 フィルター期間: {now.strftime('%Y年%m月1日')} 00:00:00 以降")
-                    st.code(f"API条件: last_edited_time >= {first_day_iso}", language="json")
+                    st.info(f"🎯 フィルター期間: {now.strftime('%Y年%m月1日')} 00:00:00 以降（展示会日程_初日）")
+                    st.code(f"API条件: 展示会日程_初日 >= {first_day_iso}", language="json")
                     
                     date_filter = {
-                        "property": "Last edited time", 
-                        "last_edited_time": {
+                        "property": "展示会日程_初日", 
+                        "date": {
                             "on_or_after": first_day_iso
                         }
                     }
@@ -1074,20 +1089,20 @@ def notion_download():
                     end_datetime = datetime.combine(end_date, time.max)
                     end_iso = end_datetime.isoformat() + "Z"
                     
-                    st.info(f"🎯 フィルター期間: {start_date.strftime('%Y年%m月%d日')} 〜 {end_date.strftime('%Y年%m月%d日')}")
-                    st.code(f"API条件: {start_iso} <= last_edited_time <= {end_iso}", language="json")
+                    st.info(f"🎯 フィルター期間: {start_date.strftime('%Y年%m月%d日')} 〜 {end_date.strftime('%Y年%m月%d日')}（展示会日程_初日）")
+                    st.code(f"API条件: {start_iso} <= 展示会日程_初日 <= {end_iso}", language="json")
                     
                     date_filter = {
                         "and": [
                             {
-                                "property": "Last edited time",
-                                "last_edited_time": {
+                                "property": "展示会日程_初日",
+                                "date": {
                                     "on_or_after": start_iso
                                 }
                             },
                             {
-                                "property": "Last edited time",
-                                "last_edited_time": {
+                                "property": "展示会日程_初日",
+                                "date": {
                                     "on_or_before": end_iso
                                 }
                             }
@@ -1105,7 +1120,9 @@ def notion_download():
                                     {"property": "メールアドレス（有無）", "select": {"equals": "社名・住所・URL"}},
                                     {"property": "メールアドレス（有無）", "select": {"equals": "Tel、住所、URL"}},
                                     {"property": "メールアドレス（有無）", "select": {"equals": "社名とURL（直で企業HPリンク）"}},
-                                    {"property": "メールアドレス（有無）", "select": {"equals": "社名とURLのみ"}}
+                                    {"property": "メールアドレス（有無）", "select": {"equals": "社名とURLのみ"}},
+                                    {"property": "メールアドレス（有無）", "select": {"equals": "出展社名のみ"}},
+                                    {"property": "メールアドレス（有無）", "select": {"equals": "社名・住所"}}
                                 ]
                             },
                             {"property": "ファイル", "files": {"is_not_empty": True}}
@@ -1121,7 +1138,8 @@ def notion_download():
                     selected_categories = st.session_state.get('selected_categories', {
                         "📧メールあり": True,
                         "📞TELあり": True,
-                        "🌐URLあり": True
+                        "🌐URLあり": True,
+                        "🏢出展社名のみ": True
                     })
                     
                     # 1. メールありフォルダ
@@ -1170,7 +1188,24 @@ def notion_download():
                         if date_filter:
                             url_filter["and"].append(date_filter)
                         filters["🌐URLあり"] = url_filter
-                    
+
+                    # 4. 出展社名のみ
+                    if selected_categories.get("🏢出展社名のみ", True):
+                        exhibitor_filter = {
+                            "and": [
+                                {
+                                    "or": [
+                                        {"property": "メールアドレス（有無）", "select": {"equals": "出展社名のみ"}},
+                                        {"property": "メールアドレス（有無）", "select": {"equals": "社名・住所"}}
+                                    ]
+                                },
+                                {"property": "ファイル", "files": {"is_not_empty": True}}
+                            ]
+                        }
+                        if date_filter:
+                            exhibitor_filter["and"].append(date_filter)
+                        filters["🏢出展社名のみ"] = exhibitor_filter
+
                     return filters
             
             # フィルター条件を取得
@@ -1182,8 +1217,8 @@ def notion_download():
             if update_mode == "今月の新規ファイルのみ":
                 from datetime import datetime
                 now = datetime.now()
-                st.info(f"📅 フィルター条件: {now.strftime('%Y年%m月')}の最終更新日時")
-                st.success("✅ 最終更新日時フィルターを使用（今月編集されたレコードのみ）")
+                st.info(f"📅 フィルター条件: {now.strftime('%Y年%m月')}の展示会日程_初日")
+                st.success("✅ 展示会日程_初日フィルターを使用（今月開催初日が対象のレコードのみ）")
             
             with st.spinner("対象件数を確認中..."):
                 total_counts = {}
@@ -1215,27 +1250,22 @@ def notion_download():
                     st.success(f"🎯 **対象アイテム: {total}件**")
                 else:
                     st.success("🎯 **カテゴリ別対象件数:**")
-                    col1, col2, col3 = st.columns(3)
-                    
                     categories = list(total_counts.keys())
-                    with col1:
-                        if len(categories) > 0:
-                            st.metric(categories[0], total_counts[categories[0]])
-                    with col2:
-                        if len(categories) > 1:
-                            st.metric(categories[1], total_counts[categories[1]])
-                    with col3:
-                        if len(categories) > 2:
-                            st.metric(categories[2], total_counts[categories[2]])
+                    num_cols = max(1, min(len(categories), 4))
+                    metric_cols = st.columns(num_cols)
+
+                    for idx, category in enumerate(categories):
+                        col = metric_cols[idx % num_cols]
+                        col.metric(category, total_counts[category])
                     
                     total = sum(total_counts.values())
                     st.info(f"**合計: {total}件**")
                 
                 # 期間表示
                 if update_mode == "今月の新規ファイルのみ":
-                    st.info(f"📅 期間: {now.strftime('%Y年%m月')}の最終更新日時に該当するファイル")
+                    st.info(f"📅 期間: {now.strftime('%Y年%m月')}の展示会日程_初日に該当するファイル")
                 elif update_mode == "期間を指定":
-                    st.info(f"📅 期間: {start_date.strftime('%Y年%m月%d日')} 〜 {end_date.strftime('%Y年%m月%d日')}")
+                    st.info(f"📅 期間: {start_date.strftime('%Y年%m月%d日')} 〜 {end_date.strftime('%Y年%m月%d日')}（展示会日程_初日）")
                 else:
                     st.info("📅 期間: 全期間")
                 

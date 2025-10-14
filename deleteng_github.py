@@ -370,6 +370,19 @@ def cell_text(value: object) -> str:
     return str(value).strip()
 
 
+SPLIT_PATTERN = re.compile(r"[\n\r,;、／/|]+")
+
+
+def split_cell_values(raw: str) -> List[str]:
+    """Split a cell that may contain multiple entries into individual tokens."""
+
+    if not raw:
+        return []
+    normalized = raw.replace("\u3000", " ").replace("\t", " ").strip()
+    parts = SPLIT_PATTERN.split(normalized)
+    return [part.strip() for part in parts if part.strip()]
+
+
 def strip_contains_token(raw: str) -> Tuple[str, bool]:
     text = raw.strip()
     if len(text) >= 2 and text[0] in CONTAINS_MARKERS and text[-1] in CONTAINS_MARKERS:
@@ -446,25 +459,27 @@ def load_ng_definitions(
 
             cat_norm = normalize_identifier(raw_category)
             if cat_norm in company_tokens:
-                cleaned, is_contains = strip_contains_token(raw_value)
-                norm = normalize_company(cleaned)
-                if not norm:
-                    continue
-                if is_contains:
-                    contains_companies.append(norm)
-                else:
-                    exact_companies.add(norm)
+                for entry in split_cell_values(raw_value):
+                    cleaned, is_contains = strip_contains_token(entry)
+                    norm = normalize_company(cleaned)
+                    if not norm:
+                        continue
+                    if is_contains:
+                        contains_companies.append(norm)
+                    else:
+                        exact_companies.add(norm)
             elif cat_norm in email_tokens:
-                cleaned, _ = strip_contains_token(raw_value)
-                norm = normalize_text(cleaned)
-                if not norm:
-                    continue
-                if "@" in norm:
-                    ng_emails.add(norm)
-                else:
-                    domain = clean_domain(norm)
-                    if domain:
-                        ng_domains.add(domain)
+                for entry in split_cell_values(raw_value):
+                    cleaned, _ = strip_contains_token(entry)
+                    norm = normalize_text(cleaned)
+                    if not norm:
+                        continue
+                    if "@" in norm:
+                        ng_emails.add(norm)
+                    else:
+                        domain = clean_domain(norm)
+                        if domain:
+                            ng_domains.add(domain)
             else:
                 print(
                     f"[WARN] Unknown NG category '{raw_category}' in tab '{worksheet_name}'. Skipped.",

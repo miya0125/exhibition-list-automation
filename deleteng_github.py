@@ -541,7 +541,7 @@ def write_dataframe(
     values = header + dataframe_to_sheet_values(df)
     if not values:
         values = [[]]
-    ws.update("A1", values, value_input_option="USER_ENTERED")
+    ws.update(range_name="A1", values=values, value_input_option="USER_ENTERED")
 
 
 def trim_columns(df: pd.DataFrame, columns: Iterable[str]) -> None:
